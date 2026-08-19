@@ -552,7 +552,7 @@ func (this *PDFreader) resolveCompressedObjects(objSpec *PdfValue) (*PdfValue, e
 			return nil, errors.Wrap(err, "Failed to read token")
 		}
 
-		// Convert line (string) into int
+		// convert line (string) into int
 		_objpos, err = strconv.Atoi(token)
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to convert token into integer: "+token)
@@ -605,7 +605,7 @@ func (this *PdfReader) resolveObject(objSpec *PdfValue) (*PdfValue, error) {
 	r := bufio.NewReader(this.f)
 
 	if objSpec.Type == PDF_TYPE_OBJREF {
-		// This is a reference, resolve it.
+		// this is a reference, resolve it.
 		offset := this.xref[objSpec.Id][objSpec.Gen]
 
 		if _, ok := this.xref[objSpec.Id]; !ok {
@@ -747,7 +747,7 @@ func (this *PdfReader) resolveObject(objSpec *PdfValue) (*PdfValue, error) {
 }
 
 // Find the xref offset (should be at the end of the PDF)
-func (this *PdfReader) findXref() error {
+func (this *PDFreader) findXref() error {
 	var result int
 	var err error
 	var toRead int64
