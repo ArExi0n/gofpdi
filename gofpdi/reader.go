@@ -467,14 +467,14 @@ func (this *PDFreader) resolveCompressedObjects(objSpec *PdfValue) (*PdfValue, e
 		return nil, errors.New(fmt.Sprintf("Could not find object ID %d in xref stream or xref table.", objSpec.Id))
 	}
 
-	// Get object id and index
+	// get object id and index
 	objectId := this.xrefStream[objSpec.Id][0]
 	objectIndex := this.xrefStream[objSpec.Id][1]
 
 	// read compressed object
 	compressedObjSpec := &PdfValue{Type: PDF_TYPE_OBJREF, Id: objectId, Gen: 0}
 
-	// Resolve compressed object
+	// resolve compressed object
 	compressedObj, err := this.resolveObject(compressedObjSpec)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to resolve compressed object")
@@ -489,19 +489,19 @@ func (this *PDFreader) resolveCompressedObjects(objSpec *PdfValue) (*PdfValue, e
 		return nil, errors.New("Could not determine compressed object type.")
 	}
 
-	// Get number of sub-objects in compressed object
+	// get number of sub-objects in compressed object
 	n := compressedObj.Value.Dictionary["/N"].Int
 	if n <= 0 {
 		return nil, errors.New("No sub objects in compressed object")
 	}
 
-	// Get offset of first object
+	// get offset of first object
 	first := compressedObj.Value.Dictionary["/First"].Int
 
-	// Get length
+	// get length
 	// length := compressedObj.Value.Dictionary["/Length"].Int
 
-	// Check for filter
+	// check for filter
 	filter := ""
 	if _, ok := compressedObj.Value.Dictionary["/Filter"]; ok {
 		filter = compressedObj.Value.Dictionary["/Filter"].Token
@@ -564,7 +564,7 @@ func (this *PDFreader) resolveCompressedObjects(objSpec *PdfValue) (*PdfValue, e
 		}
 	}
 
-	// Now create an io.ReadSeeker
+	// now create an io.ReadSeeker
 	rs := bytes.NewReader(compressedObj.Stream.Bytes)
 
 	// Determine where to seek to (sub-object position + /First)
@@ -838,24 +838,24 @@ func (this *PDFreader) readXref() error {
 		}
 
 		if v.Type == PDF_TYPE_OBJDEC {
-			// Read next token
+			// read next token
 			t, err = this.readToken(r)
 			if err != nil {
 				return errors.Wrap(err, "Failed to read token")
 			}
 
-			// Read actual object value
+			// read object value
 			v, err := this.readValue(r, t)
 			if err != nil {
 				return errors.Wrap(err, "Failed to read value for token: "+t)
 			}
 
-			// If /Type is set, check to see if it is XRef
+			// If /type is set, check to see if it is XRef
 			if _, ok := v.Dictionary["/Type"]; ok {
 				if v.Dictionary["/Type"].Token == "/XRef" {
-					// Continue reading xref stream data now that it is confirmed that it is an xref stream
+					// continue reading xref stream data now that it is confirmed that it is an xref stream
 
-					// Check for /DecodeParms
+					// check for /decodeParms
 					paethDecode := false
 					if _, ok := v.Dictionary["/DecodeParms"]; ok {
 						columns := 0
