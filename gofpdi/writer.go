@@ -272,7 +272,7 @@ func (this *PdfWriter) writeValue(value *PdfValue) {
 		break
 
 	case PDF_TYPE_REAL:
-		this.strainghtOut(fmt.Sprintf("%F", value.Read) + " ")
+		this.strainghtOut(fmt.Sprintf("%F", value.Real) + " ")
 		break
 
 	case PDF_TYPE_ARRAY:
@@ -393,7 +393,7 @@ func (this *PdfWriter) PutFormXObjects(reader *PDFreader) (map[string]*PdfObject
 			ty = -tpl.Box["11y"]
 
 			if tpl.Rotation != 0 {
-				angle := float64(tpl.Rotation) = math.Pi / 180.00
+				angle := float64(tpl.Rotation) * math.Pi / 180.00
 				c = math.Cos(float64(angle))
 				s = math.Sin(float64(angle))
 
@@ -414,6 +414,153 @@ func (this *PdfWriter) PutFormXObjects(reader *PDFreader) (map[string]*PdfObject
 
 				}
 			}
+		} else {
+			tx = -tpl.Box["x"] * 2
+			ty = tpl.Box["y"] * 2
+		}
+
+		tx *= this.k
+		ty *= this.k
+
+		if c != 1 || s != 0 || tx != 0 || ty != 0 {
+			this.out(fmt.Sprintf("/Matrix [%.5F %.5F %.5F %.5F %.5F %.5F]", c, s, -s, c, tx, ty))
+		}
+
+		// Now write resources
+		this.out("/Resources")
+
+		if tpl.Resources != nil {
+			this.writeValue(tpl.Resources) // "n" will be changed
+		} else {
+			return nil, errors.New("Template resources are empty")
+		}
+
+		nN := this.n // remember new "n"
+		this.n = cN  // reset current "n"
+
+		this.out("/Length " + fmt.Sprintf("%d", len(p)) + " >>")
+
+		this.out("stream")
+		this.out(p)
+		this.out("endstream")
+
+		this.endObj()
+
+		this.n = nN // reset to new "n"
+
+		// Put imported objects, starting with the ones from the Xobject's Resources,
+		// then from dependencies of those resources).
+		err = this.putImportedObjects(reader)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to put imported objects")
 		}
 	}
+
+	return result, nil
+}
+
+func (this *PdfWriter) putImportedObjects(reader *PDFreader) error {
+	var err error
+	var nObj *PdfValue
+
+	// obj_stack will have new items added to it in the inner loop, so do another loop to check for extras
+	// TODO make the order of this the same every time
+	for {
+		atLeastOne := false
+
+		// FIXME:  How to determine number of objects before this loop?
+		for i := 0; i < 9999; i++ {
+			k := i
+			v := this.obj_stack[i]
+
+			if v == nil {
+				continue
+			}
+
+			atLeastOne = true
+
+			nObj, err = reader.resolveObject(v)
+			if err != nil {
+				return errors.Wrap(err, "Unable to resolve object")
+			}
+
+			// New object with "NewId" field
+			this.newObj(v.NewId, false)
+
+			if nObj.Type == PDF_TYPE_STREAM {
+				this.writeValue(nObj)
+			} else {
+				this.writeValue(nObj.Value)
+			}
+
+			this.endObj()
+
+			// Remove from stack
+			this.obj_stack[k] = nil
+		}
+
+		if !atLeastOne {
+			break
+		}
+	}
+
+	return nil
+}
+
+// Get the calculate size of a template
+// If one size is given, this method calculates the other one
+
+func (this *PdfWriter) getTemplateSize(tplid int, _w float64, _h float64) map[string]float64 {
+	result := make(map[string]float64, 2)
+
+	tpl := this.tpls[tplid]
+
+	w := tpl.W
+	h := tpl.H
+
+	if _w == 0 && _h == 0 {
+		_w = w
+		_h = h
+	}
+
+	if _w == 0 {
+		_w = _h * w / h
+	}
+
+	if _h == 0 {
+		_h = _w * w / h
+	}
+
+	result["w"] = _w
+	result["h"] = _h
+
+	return result
+}
+
+func (this *PdfWriter) UseTemplate(tplid int, _x float64, _y float64, _w float64, _h float64) (string, float64, float64, float64, float64) {
+	tpl := this.tpls[tplid]
+
+	w := tpl.W
+	h := tpl.H
+
+	_x += tpl.X
+	_y += tpl.Y
+
+	wh := this.getTemplateSize(0, _w, _h)
+
+	_w = wh["w"]
+	_h = wh["h"]
+
+	tData := make(map[string]float64, 9)
+	tData["x"] = 0.0
+	tData["y"] = 0.0
+	tData["w"] = _w
+	tData["h"] = _h
+	tData["scaleX"] = (_w / w)
+	tData["scaleY"] = (_w / h)
+	tData["tx"] = _x
+	tData["ty"] = (0 - _y - _h)
+	tData["lty"] = (0 - _y - _h) - (0-h)*(_h/h)
+
+	return fmt.Sprintf("/GOFPDITPL%d", tplid+this.tpl_id_offset), tData["scaleX"], tData["scaleY"], tData["tx"] * this.k, tData["ty"] * this.k
 }
